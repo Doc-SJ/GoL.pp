@@ -1,23 +1,27 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 
+// Constants for the window size and cell size.
 const int WIDTH = 800;
 const int HEIGHT = 600;
 const int CELL_SIZE = 10;
 const int GRID_WIDTH = WIDTH / CELL_SIZE;
 const int GRID_HEIGHT = HEIGHT / CELL_SIZE;
 
+// Function to convert the mouse position to grid coordinates.
 sf::Vector2i getMousePositionInGrid(sf::RenderWindow& window) {
     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
     return sf::Vector2i(mousePos.x / CELL_SIZE, mousePos.y / CELL_SIZE);
 }
 
+// Function to wrap the grid coordinate for toroidal topology.
 int wrapCoordinate(int coordinate, int max) {
     if (coordinate < 0) return max - 1;
     if (coordinate >= max) return 0;
     return coordinate;
 }
 
+// Function to count the number of living neighbors around a cell.
 int countNeighbours(const std::vector<std::vector<bool>>& grid, int x, int y) {
     int count = 0;
     for (int i = -1; i <= 1; i++) {
@@ -31,6 +35,7 @@ int countNeighbours(const std::vector<std::vector<bool>>& grid, int x, int y) {
     return count;
 }
 
+// Function to update the grid state based on Conway's Game of Life rules.
 void updateGrid(std::vector<std::vector<bool>>& grid) {
     std::vector<std::vector<bool>> newGrid = grid;
     for (int x = 0; x < GRID_WIDTH; x++) {
@@ -46,13 +51,16 @@ void updateGrid(std::vector<std::vector<bool>>& grid) {
     grid = newGrid;
 }
 
+// Main function where the SFML window is created and the game loop runs.
 int main() {
     sf::RenderWindow window(sf::VideoMode(sf::Vector2u(WIDTH, HEIGHT)), "Conway's Game of Life");
     window.setFramerateLimit(60);
 
+    // Initialize the grid as a 2D vector.
     std::vector<std::vector<bool>> grid(GRID_WIDTH, std::vector<bool>(GRID_HEIGHT, false));
     bool simulationRunning = false;
 
+    // Game loop: Handle events, update the state, and render the grid.
     while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -70,6 +78,7 @@ int main() {
             }
         }
 
+        // Render the cells on the window.
         window.clear(sf::Color::Black);
         for (int x = 0; x < GRID_WIDTH; x++) {
             for (int y = 0; y < GRID_HEIGHT; y++) {
@@ -81,6 +90,7 @@ int main() {
         }
         window.display();
 
+        // Update the grid state if the simulation is running.
         if (simulationRunning) {
             updateGrid(grid);
         }
