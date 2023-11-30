@@ -1,10 +1,12 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
+#include <cstdlib>  // For rand() and srand()
+#include <ctime>    // For time()
 
 // Constants for the window size and cell size.
 const int WIDTH = 800;
 const int HEIGHT = 600;
-const int CELL_SIZE = 10;
+const int CELL_SIZE = 8;
 const int GRID_WIDTH = WIDTH / CELL_SIZE;
 const int GRID_HEIGHT = HEIGHT / CELL_SIZE;
 
@@ -14,7 +16,7 @@ sf::Vector2i getMousePositionInGrid(sf::RenderWindow& window) {
     return sf::Vector2i(mousePos.x / CELL_SIZE, mousePos.y / CELL_SIZE);
 }
 
-// Function to wrap the grid coordinate for toroidal topology.
+// Function to wrap the grid coordinates for toroidal topology.
 int wrapCoordinate(int coordinate, int max) {
     if (coordinate < 0) return max - 1;
     if (coordinate >= max) return 0;
@@ -51,12 +53,22 @@ void updateGrid(std::vector<std::vector<bool>>& grid) {
     grid = newGrid;
 }
 
-// Main function where the SFML window is created and the game loop runs.
+// Function to generate a random soup
+void createRandomSoup(std::vector<std::vector<bool>>& grid) {
+    // Seed the random number generator
+    srand(static_cast<unsigned int>(time(nullptr)));
+
+    for (int x = 0; x < GRID_WIDTH; x++) {
+        for (int y = 0; y < GRID_HEIGHT; y++) {
+            grid[x][y] = rand() % 2;  // Randomly set each cell to true or false
+        }
+    }
+}
+
 int main() {
-    sf::RenderWindow window(sf::VideoMode(sf::Vector2u(WIDTH, HEIGHT)), "Conway's Game of Life");
+    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Conway's Game of Life");
     window.setFramerateLimit(60);
 
-    // Initialize the grid as a 2D vector.
     std::vector<std::vector<bool>> grid(GRID_WIDTH, std::vector<bool>(GRID_HEIGHT, false));
     bool simulationRunning = false;
 
@@ -67,14 +79,28 @@ int main() {
             if (event.type == sf::Event::Closed)
                 window.close();
 
-            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space)
-                simulationRunning = !simulationRunning;
+            // Toggle simulation running state with the spacebar
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Space) {
+                    simulationRunning = !simulationRunning;
+                } else if (event.key.code == sf::Keyboard::Right && !simulationRunning) {
+                    updateGrid(grid);  // Update the grid for one iteration
+                }
+            }
 
+            // Toggle cell state with mouse button press
             if (event.type == sf::Event::MouseButtonPressed) {
-                sf::Vector2i pos = getMousePositionInGrid(window);
-                pos.x = wrapCoordinate(pos.x, GRID_WIDTH);
-                pos.y = wrapCoordinate(pos.y, GRID_HEIGHT);
-                grid[pos.x][pos.y] = !grid[pos.x][pos.y];
+                sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                // Check if the mouse click is within the random soup button's bounds
+                if (mousePos.x >= WIDTH - 30 && mousePos.x <= WIDTH - 10 && mousePos.y >= 10 && mousePos.y <= 30) {
+                    createRandomSoup(grid);  // Create a random soup
+                } else {
+                    sf::Vector2i pos = getMousePositionInGrid(window);
+                    pos.x = wrapCoordinate(pos.x, GRID_WIDTH);
+                    pos.y = wrapCoordinate(pos.y, GRID_HEIGHT);
+                    grid[pos.x][pos.y] = !grid[pos.x][pos.y];
+                }
             }
         }
 
@@ -88,9 +114,30 @@ int main() {
                 window.draw(cell);
             }
         }
+
+        // Random soup button definitions
+        sf::Vector2f centralPoint(WIDTH - 20, 20); // central point
+        float scale = 20.0f; // scaling factor
+
+        // Random soup button calculations
+        sf::Vector2f point0(centralPoint.x - scale / 2, centralPoint.y - scale / 2);
+        sf::Vector2f point1(centralPoint.x + scale / 2, centralPoint.y - scale / 2);
+        sf::Vector2f point2(centralPoint.x + scale / 2, centralPoint.y + scale / 2);
+        sf::Vector2f point3(centralPoint.x - scale / 2, centralPoint.y + scale / 2);
+
+        // Draw the random soup button
+        sf::ConvexShape square;
+        square.setPointCount(4);
+        square.setPoint(0, point0);
+        square.setPoint(1, point1);
+        square.setPoint(2, point2);
+        square.setPoint(3, point3);
+        square.setFillColor(sf::Color::White); // Set square color
+        window.draw(square);
+
         window.display();
 
-        // Update the grid state if the simulation is running.
+        // Continuously update the grid state if the simulation is running.
         if (simulationRunning) {
             updateGrid(grid);
         }
