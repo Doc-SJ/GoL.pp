@@ -6,10 +6,11 @@
 
 // Gotta' define 'dem buttons, ya feel me?
 std::vector<sf::ConvexShape> defineButtonShapes();
-void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
+bool handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
 void clearGrid(std::vector<std::vector<bool>>& grid);
 void createRandomSoup(std::vector<std::vector<bool>>& grid);
-
+bool rightKeyPressed = false;
+bool leftKeyPressed = false;
 
 // Constants for the window size and cell size.
 const int WIDTH = 800;
@@ -26,6 +27,7 @@ const int RANDOM_SOUP_BUTTON_Y = 10;
 const int CLEAR_BUTTON_X = WIDTH - 30;
 const int CLEAR_BUTTON_Y = 10;
 
+// Function to Draw the Buttons
 std::vector<sf::ConvexShape> defineButtonShapes() {
     std::vector<sf::ConvexShape> buttons;
 
@@ -117,111 +119,171 @@ void clearGrid(std::vector<std::vector<bool>>& grid) {
 }
 
 // Function to handle button press
-void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning) {
+bool handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning) {
     // Check for Random Soup button press
     if (mousePos.x >= RANDOM_SOUP_BUTTON_X && mousePos.x <= RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH &&
         mousePos.y >= RANDOM_SOUP_BUTTON_Y && mousePos.y <= RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT) {
-        createRandomSoup(grid);  // Create a random soup
+        createRandomSoup(grid);
+        return true; // Indicate a button was pressed
     }
 
     // Check for Clear button press
     if (mousePos.x >= CLEAR_BUTTON_X && mousePos.x <= CLEAR_BUTTON_X + BUTTON_WIDTH &&
         mousePos.y >= CLEAR_BUTTON_Y && mousePos.y <= CLEAR_BUTTON_Y + BUTTON_HEIGHT) {
-        // Clear grid logic
-        for (int x = 0; x < grid.size(); x++) {
-            for (int y = 0; y < grid[0].size(); y++) {
-                grid[x][y] = false;
-            }
-        }
-        simulationRunning = true;
+        clearGrid(grid);
+        return true; // Indicate a button was pressed
     }
+
+    return false; // No button was pressed
 }
 
+// Initialise some stuff
 std::vector<sf::ConvexShape> defineButtonShapes();
-void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
+bool handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
 void clearGrid(std::vector<std::vector<bool>>& grid);
 void createRandomSoup(std::vector<std::vector<bool>>& grid);
 void updateGrid(std::vector<std::vector<bool>>& grid);
 sf::Vector2i getMousePositionInGrid(sf::RenderWindow& window);
 
+// New enum class for game states
+enum class GameStatus {
+    Home,
+    Running,
+    Exit
+};
+
+// Function to draw the home screen
+void drawHomeScreen(sf::RenderWindow& homeWindow) {
+    sf::RectangleShape startButton(sf::Vector2f(100, 50)); // Start button
+    startButton.setPosition(WIDTH / 2 - 150, HEIGHT / 2);  // Center left
+    startButton.setFillColor(sf::Color::Green);
+    homeWindow.draw(startButton);
+
+    sf::RectangleShape quitButton(sf::Vector2f(100, 50)); // Quit button
+    quitButton.setPosition(WIDTH / 2 + 50, HEIGHT / 2);   // Center right
+    quitButton.setFillColor(sf::Color::Red);
+    homeWindow.draw(quitButton);
+}
+
+// Function to handle home screen button presses
+GameStatus handleHomeScreenInteraction(const sf::Vector2i& mousePosition) {
+    // Check if start button is pressed
+    if (mousePosition.x >= (WIDTH / 2 - 150) && mousePosition.x <= (WIDTH / 2 - 50) &&
+        mousePosition.y >= (HEIGHT / 2) && mousePosition.y <= (HEIGHT / 2 + 50)) {
+        return GameStatus::Running;
+    }
+
+    // Check if quit button is pressed
+    if (mousePosition.x >= (WIDTH / 2 + 50) && mousePosition.x <= (WIDTH / 2 + 150) &&
+        mousePosition.y >= (HEIGHT / 2) && mousePosition.y <= (HEIGHT / 2 + 50)) {
+        return GameStatus::Exit;
+    }
+
+    return GameStatus::Home;
+}
+
 int main() {
+    GameStatus currentStatus = GameStatus::Home; // Start with the home screen
     std::stack<std::vector<std::vector<bool>>> gridHistory;
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Conway's Game of Life");
     window.setFramerateLimit(60);
-
     std::vector<std::vector<bool>> grid(GRID_WIDTH, std::vector<bool>(GRID_HEIGHT, false));
     bool simulationRunning = false;
-
     std::vector<sf::ConvexShape> buttons = defineButtonShapes(); // Initialize button shapes
-
-    // Game loop: Handle events, update the state, and render the grid.
+    sf::Clock clock;
+    float timeSinceLastStep = 0.0f;
+    
     while (window.isOpen()) {
         sf::Event event;
+        float deltaTime = clock.restart().asSeconds();
+        timeSinceLastStep += deltaTime;
         while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
+            if (event.type == sf::Event::Closed) {
                 window.close();
-
-            // Toggle simulation running state with the spacebar
-            if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code == sf::Keyboard::Space) {
-                    simulationRunning = !simulationRunning;
-                    if (simulationRunning) {
-                        // Clear the history when starting the simulation
-                        while (!gridHistory.empty()) gridHistory.pop();
-                    }
-                } else if (event.key.code == sf::Keyboard::Right && !simulationRunning) {
-                    gridHistory.push(grid);  // Save the current state before updating
-                    updateGrid(grid);  // Update the grid for one iteration
-                } else if (event.key.code == sf::Keyboard::Left) {
-                    if (!gridHistory.empty()) {
-                        grid = gridHistory.top();
-                        gridHistory.pop();
-                    }
-                }
             }
 
-            // Handle button presses and cell toggling
-            if (event.type == sf::Event::MouseButtonPressed) {
+            if (currentStatus == GameStatus::Home && event.type == sf::Event::MouseButtonPressed) {
                 sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+                currentStatus = handleHomeScreenInteraction(mousePos);
+            }
 
-                // Check if the click is outside the button areas
-                if (!(mousePos.x >= RANDOM_SOUP_BUTTON_X && mousePos.x <= RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH &&
-                      mousePos.y >= RANDOM_SOUP_BUTTON_Y && mousePos.y <= RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT) &&
-                    !(mousePos.x >= CLEAR_BUTTON_X && mousePos.x <= CLEAR_BUTTON_X + BUTTON_WIDTH &&
-                      mousePos.y >= CLEAR_BUTTON_Y && mousePos.y <= CLEAR_BUTTON_Y + BUTTON_HEIGHT)) {
-                    
-                    sf::Vector2i pos = getMousePositionInGrid(window);
-                    pos.x = wrapCoordinate(pos.x, GRID_WIDTH);
-                    pos.y = wrapCoordinate(pos.y, GRID_HEIGHT);
-                    grid[pos.x][pos.y] = !grid[pos.x][pos.y]; // Toggle cell state
-                } else {
-                    handleButtonPress(mousePos, grid, simulationRunning);
+            if (currentStatus == GameStatus::Running) {
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Space) {
+                        simulationRunning = !simulationRunning;
+                    } else if (event.key.code == sf::Keyboard::Right && !rightKeyPressed) {
+                        rightKeyPressed = true;
+                        gridHistory.push(grid);
+                        updateGrid(grid);
+                        rightKeyPressed = true;
+                    } else if (event.key.code == sf::Keyboard::Left && !leftKeyPressed) {
+                        leftKeyPressed = true;
+                        if (!gridHistory.empty()) {
+                            grid = gridHistory.top();
+                            gridHistory.pop();
+                            leftKeyPressed = true;
+                        }
+                    }
+                } else if (event.type == sf::Event::KeyReleased) {
+                    if (event.key.code == sf::Keyboard::Right) {
+                        rightKeyPressed = false;
+                    } else if (event.key.code == sf::Keyboard::Left) {
+                        leftKeyPressed = false;
+                    }
+                }
+
+                if (event.type == sf::Event::MouseButtonPressed) {
+                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+                    // Handle button presses and determine if a button was clicked
+                    bool buttonClicked = handleButtonPress(mousePos, grid, simulationRunning);
+
+                    if (!buttonClicked) {
+                        // If no button was clicked, handle cell toggling
+                        sf::Vector2i gridPos = getMousePositionInGrid(window);
+                        if (gridPos.x >= 0 && gridPos.x < GRID_WIDTH && gridPos.y >= 0 && gridPos.y < GRID_HEIGHT) {
+                            grid[gridPos.x][gridPos.y] = !grid[gridPos.x][gridPos.y];
+                        }
+                    }
                 }
             }
+
+            // Additional states go here.
         }
 
-        // Render the cells on the window.
+        // Rendering based on the current game state
         window.clear(sf::Color::Black);
-        for (int x = 0; x < GRID_WIDTH; x++) {
-            for (int y = 0; y < GRID_HEIGHT; y++) {
-                sf::RectangleShape cell(sf::Vector2f(CELL_SIZE, CELL_SIZE));
-                cell.setPosition(sf::Vector2f(x * CELL_SIZE, y * CELL_SIZE));
-                cell.setFillColor(grid[x][y] ? sf::Color::White : sf::Color::Black);
-                window.draw(cell);
-            }
-        }
 
-        // Draw the buttons
-        for (const auto& button : buttons) {
-            window.draw(button);
+        if (currentStatus == GameStatus::Home) {
+            drawHomeScreen(window);
+        } else if (currentStatus == GameStatus::Running) {
+            // Draw the grid cells
+            for (int x = 0; x < GRID_WIDTH; x++) {
+                for (int y = 0; y < GRID_HEIGHT; y++) {
+                    sf::RectangleShape cell(sf::Vector2f(CELL_SIZE, CELL_SIZE));
+                    cell.setPosition(sf::Vector2f(x * CELL_SIZE, y * CELL_SIZE));
+                    cell.setFillColor(grid[x][y] ? sf::Color::White : sf::Color::Black);
+                    window.draw(cell);
+                }
+            }
+
+            // Draw the buttons
+            for (const auto& button : buttons) {
+                window.draw(button);
+            }
+
+            // Continuously update the grid state if the simulation is running
+            if (simulationRunning) {
+                gridHistory.push(grid);
+                updateGrid(grid);
+            }
         }
 
         window.display();
 
-        // Continuously update the grid state if the simulation is running.
-        if (simulationRunning) {
-            gridHistory.push(grid);
-            updateGrid(grid);
+        // Check if the game should exit
+        if (currentStatus == GameStatus::Exit) {
+            window.close();
         }
     }
 
