@@ -2,6 +2,14 @@
 #include <vector>
 #include <cstdlib>  // For rand() and srand()
 #include <ctime>    // For time()
+#include <stack>
+
+// Gotta' define 'dem buttons, ya feel me?
+std::vector<sf::ConvexShape> defineButtonShapes();
+void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
+void clearGrid(std::vector<std::vector<bool>>& grid);
+void createRandomSoup(std::vector<std::vector<bool>>& grid);
+
 
 // Constants for the window size and cell size.
 const int WIDTH = 800;
@@ -9,6 +17,40 @@ const int HEIGHT = 600;
 const int CELL_SIZE = 8;
 const int GRID_WIDTH = WIDTH / CELL_SIZE;
 const int GRID_HEIGHT = HEIGHT / CELL_SIZE;
+
+// Define constants for button dimensions and positions
+const int BUTTON_WIDTH = 20;
+const int BUTTON_HEIGHT = 20;
+const int RANDOM_SOUP_BUTTON_X = WIDTH - 60;
+const int RANDOM_SOUP_BUTTON_Y = 10;
+const int CLEAR_BUTTON_X = WIDTH - 30;
+const int CLEAR_BUTTON_Y = 10;
+
+std::vector<sf::ConvexShape> defineButtonShapes() {
+    std::vector<sf::ConvexShape> buttons;
+
+    // Random Soup Button
+    sf::ConvexShape randomSoupButton;
+    randomSoupButton.setPointCount(4);
+    randomSoupButton.setPoint(0, sf::Vector2f(RANDOM_SOUP_BUTTON_X, RANDOM_SOUP_BUTTON_Y));
+    randomSoupButton.setPoint(1, sf::Vector2f(RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH, RANDOM_SOUP_BUTTON_Y));
+    randomSoupButton.setPoint(2, sf::Vector2f(RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH, RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT));
+    randomSoupButton.setPoint(3, sf::Vector2f(RANDOM_SOUP_BUTTON_X, RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT));
+    randomSoupButton.setFillColor(sf::Color::Blue);
+    buttons.push_back(randomSoupButton);
+
+    // Clear Button
+    sf::ConvexShape clearButton;
+    clearButton.setPointCount(4);
+    clearButton.setPoint(0, sf::Vector2f(CLEAR_BUTTON_X, CLEAR_BUTTON_Y));
+    clearButton.setPoint(1, sf::Vector2f(CLEAR_BUTTON_X + BUTTON_WIDTH, CLEAR_BUTTON_Y));
+    clearButton.setPoint(2, sf::Vector2f(CLEAR_BUTTON_X + BUTTON_WIDTH, CLEAR_BUTTON_Y + BUTTON_HEIGHT));
+    clearButton.setPoint(3, sf::Vector2f(CLEAR_BUTTON_X, CLEAR_BUTTON_Y + BUTTON_HEIGHT));
+    clearButton.setFillColor(sf::Color::Red);
+    buttons.push_back(clearButton);
+
+    return buttons;
+}
 
 // Function to convert the mouse position to grid coordinates.
 sf::Vector2i getMousePositionInGrid(sf::RenderWindow& window) {
@@ -23,7 +65,7 @@ int wrapCoordinate(int coordinate, int max) {
     return coordinate;
 }
 
-// Function to count the number of living neighbors around a cell.
+// Function to count the number of living neighbours around a cell.
 int countNeighbours(const std::vector<std::vector<bool>>& grid, int x, int y) {
     int count = 0;
     for (int i = -1; i <= 1; i++) {
@@ -65,12 +107,52 @@ void createRandomSoup(std::vector<std::vector<bool>>& grid) {
     }
 }
 
+// Function to clear the grid
+void clearGrid(std::vector<std::vector<bool>>& grid) {
+    for (int x = 0; x < grid.size(); x++) {
+        for (int y = 0; y < grid[x].size(); y++) {
+            grid[x][y] = false;  // Set each cell to dead (false)
+        }
+    }
+}
+
+// Function to handle button press
+void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning) {
+    // Check for Random Soup button press
+    if (mousePos.x >= RANDOM_SOUP_BUTTON_X && mousePos.x <= RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH &&
+        mousePos.y >= RANDOM_SOUP_BUTTON_Y && mousePos.y <= RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT) {
+        createRandomSoup(grid);  // Create a random soup
+    }
+
+    // Check for Clear button press
+    if (mousePos.x >= CLEAR_BUTTON_X && mousePos.x <= CLEAR_BUTTON_X + BUTTON_WIDTH &&
+        mousePos.y >= CLEAR_BUTTON_Y && mousePos.y <= CLEAR_BUTTON_Y + BUTTON_HEIGHT) {
+        // Clear grid logic
+        for (int x = 0; x < grid.size(); x++) {
+            for (int y = 0; y < grid[0].size(); y++) {
+                grid[x][y] = false;
+            }
+        }
+        simulationRunning = true;
+    }
+}
+
+std::vector<sf::ConvexShape> defineButtonShapes();
+void handleButtonPress(const sf::Vector2i& mousePos, std::vector<std::vector<bool>>& grid, bool& simulationRunning);
+void clearGrid(std::vector<std::vector<bool>>& grid);
+void createRandomSoup(std::vector<std::vector<bool>>& grid);
+void updateGrid(std::vector<std::vector<bool>>& grid);
+sf::Vector2i getMousePositionInGrid(sf::RenderWindow& window);
+
 int main() {
+    std::stack<std::vector<std::vector<bool>>> gridHistory;
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Conway's Game of Life");
     window.setFramerateLimit(60);
 
     std::vector<std::vector<bool>> grid(GRID_WIDTH, std::vector<bool>(GRID_HEIGHT, false));
     bool simulationRunning = false;
+
+    std::vector<sf::ConvexShape> buttons = defineButtonShapes(); // Initialize button shapes
 
     // Game loop: Handle events, update the state, and render the grid.
     while (window.isOpen()) {
@@ -83,23 +165,37 @@ int main() {
             if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::Space) {
                     simulationRunning = !simulationRunning;
+                    if (simulationRunning) {
+                        // Clear the history when starting the simulation
+                        while (!gridHistory.empty()) gridHistory.pop();
+                    }
                 } else if (event.key.code == sf::Keyboard::Right && !simulationRunning) {
+                    gridHistory.push(grid);  // Save the current state before updating
                     updateGrid(grid);  // Update the grid for one iteration
+                } else if (event.key.code == sf::Keyboard::Left) {
+                    if (!gridHistory.empty()) {
+                        grid = gridHistory.top();
+                        gridHistory.pop();
+                    }
                 }
             }
 
-            // Toggle cell state with mouse button press
+            // Handle button presses and cell toggling
             if (event.type == sf::Event::MouseButtonPressed) {
                 sf::Vector2i mousePos = sf::Mouse::getPosition(window);
 
-                // Check if the mouse click is within the random soup button's bounds
-                if (mousePos.x >= WIDTH - 30 && mousePos.x <= WIDTH - 10 && mousePos.y >= 10 && mousePos.y <= 30) {
-                    createRandomSoup(grid);  // Create a random soup
-                } else {
+                // Check if the click is outside the button areas
+                if (!(mousePos.x >= RANDOM_SOUP_BUTTON_X && mousePos.x <= RANDOM_SOUP_BUTTON_X + BUTTON_WIDTH &&
+                      mousePos.y >= RANDOM_SOUP_BUTTON_Y && mousePos.y <= RANDOM_SOUP_BUTTON_Y + BUTTON_HEIGHT) &&
+                    !(mousePos.x >= CLEAR_BUTTON_X && mousePos.x <= CLEAR_BUTTON_X + BUTTON_WIDTH &&
+                      mousePos.y >= CLEAR_BUTTON_Y && mousePos.y <= CLEAR_BUTTON_Y + BUTTON_HEIGHT)) {
+                    
                     sf::Vector2i pos = getMousePositionInGrid(window);
                     pos.x = wrapCoordinate(pos.x, GRID_WIDTH);
                     pos.y = wrapCoordinate(pos.y, GRID_HEIGHT);
-                    grid[pos.x][pos.y] = !grid[pos.x][pos.y];
+                    grid[pos.x][pos.y] = !grid[pos.x][pos.y]; // Toggle cell state
+                } else {
+                    handleButtonPress(mousePos, grid, simulationRunning);
                 }
             }
         }
@@ -115,30 +211,16 @@ int main() {
             }
         }
 
-        // Random soup button definitions
-        sf::Vector2f centralPoint(WIDTH - 20, 20); // central point
-        float scale = 20.0f; // scaling factor
-
-        // Random soup button calculations
-        sf::Vector2f point0(centralPoint.x - scale / 2, centralPoint.y - scale / 2);
-        sf::Vector2f point1(centralPoint.x + scale / 2, centralPoint.y - scale / 2);
-        sf::Vector2f point2(centralPoint.x + scale / 2, centralPoint.y + scale / 2);
-        sf::Vector2f point3(centralPoint.x - scale / 2, centralPoint.y + scale / 2);
-
-        // Draw the random soup button
-        sf::ConvexShape square;
-        square.setPointCount(4);
-        square.setPoint(0, point0);
-        square.setPoint(1, point1);
-        square.setPoint(2, point2);
-        square.setPoint(3, point3);
-        square.setFillColor(sf::Color::White); // Set square color
-        window.draw(square);
+        // Draw the buttons
+        for (const auto& button : buttons) {
+            window.draw(button);
+        }
 
         window.display();
 
         // Continuously update the grid state if the simulation is running.
         if (simulationRunning) {
+            gridHistory.push(grid);
             updateGrid(grid);
         }
     }
